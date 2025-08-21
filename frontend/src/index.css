@@ -1,0 +1,374 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Modern Gaming Theme - Clean & Professional */
+body {
+  @apply bg-gradient-to-br from-gray-950 via-gray-900 to-black text-white;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-secondary-900;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-primary-500/50 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-primary-500;
+}
+
+/* Modern Button Styles */
+.btn-primary {
+  @apply bg-gradient-to-r from-purple-600 to-purple-700 text-white font-semibold py-1 px-2 rounded-lg transition-all duration-200 hover:from-purple-700 hover:to-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:ring-offset-2 focus:ring-offset-black shadow-sm hover:shadow-md;
+}
+
+.btn-secondary {
+  @apply bg-gradient-to-r from-gray-800 to-gray-900 text-white font-semibold py-1 px-2 rounded-lg border border-gray-700 transition-all duration-200 hover:from-gray-700 hover:to-gray-800 hover:border-purple-500/30 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:ring-offset-2 focus:ring-offset-black shadow-sm hover:shadow-md;
+}
+
+.btn-outline {
+  @apply border border-primary-500 text-primary-500 font-semibold py-1 px-2 rounded-lg transition-all duration-200 hover:bg-gradient-to-r hover:from-primary-500 hover:to-primary-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2 focus:ring-offset-black shadow-sm hover:shadow-md;
+}
+
+.btn-small {
+  @apply bg-gradient-to-r from-primary-500 to-primary-600 text-white font-semibold py-0.5 px-1.5 rounded-md transition-all duration-200 hover:from-primary-600 hover:to-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2 focus:ring-offset-black shadow-sm hover:shadow-md;
+}
+
+.btn-accent {
+  @apply bg-gradient-to-r from-accent-500 to-accent-600 text-white font-semibold py-1 px-2 rounded-lg transition-all duration-200 hover:from-accent-600 hover:to-accent-700 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:ring-offset-2 focus:ring-offset-black shadow-sm hover:shadow-md;
+}
+
+/* Modern Card Styles */
+.card {
+  @apply bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700/50 rounded-xl p-3 shadow-sm hover:shadow-md transition-all duration-300 backdrop-blur-sm;
+}
+
+.card-glass {
+  @apply bg-gradient-glass backdrop-blur-md border border-gray-700/30 rounded-xl p-3 shadow-sm hover:shadow-md transition-all duration-300;
+}
+
+.card-gradient {
+  @apply bg-gradient-to-br from-gray-900 via-gray-800 to-gray-950 border border-gray-700/50 rounded-xl p-3 shadow-sm hover:shadow-md transition-all duration-300;
+}
+
+.card-premium {
+  @apply bg-gradient-to-br from-gray-900 via-gray-800 to-gray-950 border border-purple-500/20 rounded-xl p-3 shadow-sm hover:shadow-md hover:border-purple-500/40 transition-all duration-300 backdrop-blur-sm;
+}
+
+/* Modern Input Styles */
+.input-field {
+  @apply bg-gradient-to-r from-gray-900 to-gray-800 border border-gray-700 text-white placeholder-gray-400 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200 shadow-sm;
+}
+
+.form-label {
+  @apply block text-sm font-semibold text-white mb-2;
+}
+
+/* Modern Badge Styles */
+.badge {
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold;
+}
+
+.badge-primary {
+  @apply bg-gradient-to-r from-primary-500 to-primary-600 text-white;
+}
+
+.badge-secondary {
+  @apply bg-gradient-to-r from-secondary-700 to-secondary-800 text-white;
+}
+
+.badge-accent {
+  @apply bg-gradient-to-r from-accent-500 to-accent-600 text-white;
+}
+
+.badge-success {
+  @apply bg-gradient-to-r from-success-500 to-success-600 text-white;
+}
+
+.badge-warning {
+  @apply bg-gradient-to-r from-warning-500 to-warning-600 text-white;
+}
+
+.badge-error {
+  @apply bg-gradient-to-r from-error-500 to-error-600 text-white;
+}
+
+/* Modern Avatar Styles */
+.avatar {
+  @apply rounded-lg object-cover border-2 border-secondary-700 shadow-sm;
+}
+
+.avatar-premium {
+  @apply rounded-lg object-cover border-2 border-primary-500/30 shadow-sm;
+}
+
+.avatar-large {
+  @apply w-16 h-16 rounded-xl;
+}
+
+.avatar-medium {
+  @apply w-10 h-10 rounded-lg;
+}
+
+.avatar-small {
+  @apply w-8 h-8 rounded-md;
+}
+
+/* Modern Navigation Styles */
+.nav-link {
+  @apply text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/10 hover:to-purple-600/10 px-3 py-2 rounded-lg transition-all duration-200 font-medium backdrop-blur-sm;
+}
+
+.nav-link.active {
+  @apply text-purple-500 bg-gradient-to-r from-purple-500/20 to-purple-600/20 border border-purple-500/30 shadow-sm;
+}
+
+/* Modern Modal Styles */
+.modal-overlay {
+  @apply fixed inset-0 bg-black/80 backdrop-blur-md z-50;
+}
+
+.modal-content {
+  @apply bg-gradient-to-br from-secondary-950 to-secondary-900 border border-secondary-800/50 rounded-xl shadow-lg backdrop-blur-md;
+}
+
+/* Modern Tooltip Styles */
+.tooltip {
+  @apply bg-gradient-to-r from-secondary-950 to-secondary-900 text-white px-3 py-2 rounded-lg text-sm shadow-lg border border-secondary-800/50 backdrop-blur-md;
+}
+
+/* Gradient text effects */
+.gradient-text {
+  @apply text-transparent bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text;
+}
+
+.gradient-text-static {
+  @apply text-transparent bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text;
+}
+
+.gradient-text-neon {
+  @apply text-transparent bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text;
+}
+
+/* Modern Glass Effects */
+.glass {
+  @apply bg-gradient-glass backdrop-blur-md border border-secondary-800/30;
+}
+
+.glass-dark {
+  @apply bg-black/80 backdrop-blur-md border border-secondary-800/30;
+}
+
+/* Modern Status Indicators */
+.status-online {
+  @apply bg-gradient-to-r from-success-500 to-success-600 border-2 border-secondary-950 shadow-sm;
+}
+
+.status-offline {
+  @apply bg-gradient-to-r from-secondary-600 to-secondary-700 border-2 border-secondary-950 shadow-sm;
+}
+
+.status-away {
+  @apply bg-gradient-to-r from-warning-500 to-warning-600 border-2 border-secondary-950 shadow-sm;
+}
+
+.status-busy {
+  @apply bg-gradient-to-r from-error-500 to-error-600 border-2 border-secondary-950 shadow-sm;
+}
+
+/* Modern Dividers */
+.divider {
+  @apply border-t border-secondary-800/50;
+}
+
+.divider-vertical {
+  @apply border-l border-secondary-800/50;
+}
+
+/* Modern Gaming Specific Styles */
+.gaming-card {
+  @apply bg-gradient-to-br from-gray-900 via-gray-800 to-gray-950 border border-gray-700/50 rounded-xl p-3 shadow-sm hover:shadow-md hover:border-purple-500/30 transition-all duration-300 backdrop-blur-sm;
+}
+
+.neon-border {
+  @apply border border-purple-500/50 shadow-sm;
+}
+
+.neon-text {
+  @apply text-purple-500;
+}
+
+.cyber-button {
+  @apply bg-gradient-to-r from-purple-600 to-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 hover:from-purple-700 hover:to-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:ring-offset-2 focus:ring-offset-black shadow-sm hover:shadow-md;
+}
+
+/* Modern Action Buttons */
+.action-button {
+  @apply bg-gradient-to-r from-purple-600 to-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 hover:from-purple-700 hover:to-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:ring-offset-2 focus:ring-offset-black shadow-sm hover:shadow-md;
+}
+
+.action-button-secondary {
+  @apply bg-gradient-to-r from-gray-800 to-gray-900 text-white font-semibold py-2 px-4 rounded-lg border border-gray-700 transition-all duration-200 hover:from-gray-700 hover:to-gray-800 hover:border-purple-500/30 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:ring-offset-2 focus:ring-offset-black shadow-sm hover:shadow-md;
+}
+
+.action-button-accent {
+  @apply bg-gradient-to-r from-pink-500 to-pink-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 hover:from-pink-600 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500/50 focus:ring-offset-2 focus:ring-offset-black shadow-sm hover:shadow-md;
+}
+
+/* Modern Floating Action Button */
+.fab {
+  @apply fixed bottom-4 right-4 bg-gradient-to-r from-purple-600 to-purple-700 text-white p-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:ring-offset-2 focus:ring-offset-black z-50;
+}
+
+/* Floating Action Button - Enhanced */
+.floating-action-button {
+  @apply fixed bottom-6 right-6 bg-gradient-to-r from-purple-600 to-purple-700 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:ring-offset-2 focus:ring-offset-black;
+  z-index: 9999;
+  position: fixed !important;
+}
+
+/* Modern Button Layouts */
+.button-group {
+  @apply flex flex-wrap gap-2 items-center;
+}
+
+.button-group-vertical {
+  @apply flex flex-col gap-2;
+}
+
+.button-group-horizontal {
+  @apply flex flex-row gap-2;
+}
+
+/* Modern Success and Error States */
+.success {
+  @apply text-green-500;
+}
+
+.error {
+  @apply text-red-500;
+}
+
+.warning {
+  @apply text-yellow-500;
+}
+
+.info {
+  @apply text-purple-500;
+}
+
+/* Modern Hover Effects */
+.hover-glow:hover {
+  @apply shadow-sm;
+}
+
+.hover-neon:hover {
+  @apply text-purple-500;
+}
+
+.hover-lift:hover {
+  @apply transform hover:scale-105;
+}
+
+/* Modern Focus States */
+.focus-neon:focus {
+  @apply ring-2 ring-purple-500/50 ring-offset-2 ring-offset-black;
+}
+
+/* Modern Spacing Utilities */
+.space-y-custom > * + * {
+  @apply mt-3;
+}
+
+.space-x-custom > * + * {
+  @apply ml-3;
+}
+
+/* Modern Shimmer Effect */
+.shimmer {
+  @apply bg-gradient-to-r from-transparent via-white/5 to-transparent bg-[length:200%_100%] animate-shimmer;
+}
+
+/* Modern Container Styles */
+.container-premium {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+.container-compact {
+  @apply max-w-4xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+.container-wide {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Modern Section Styles */
+.section-premium {
+  @apply py-6 sm:py-8 lg:py-12;
+}
+
+.section-compact {
+  @apply py-4 sm:py-6;
+}
+
+.section-wide {
+  @apply py-8 sm:py-12 lg:py-16;
+}
+
+/* Modern Grid Layouts */
+.grid-premium {
+  @apply grid gap-4;
+}
+
+.grid-compact {
+  @apply grid gap-3;
+}
+
+.grid-wide {
+  @apply grid gap-6;
+}
+
+/* Modern Responsive Utilities */
+@media (max-width: 640px) {
+  .btn-primary, .btn-secondary, .btn-outline, .cyber-button {
+    @apply py-1.5 px-3 text-sm;
+  }
+  
+  .card, .card-glass, .card-gradient, .card-premium {
+    @apply p-3 rounded-lg;
+  }
+  
+  .input-field {
+    @apply px-2 py-1.5;
+  }
+}
+
+/* Modern Loading States */
+.loading-skeleton {
+  @apply animate-pulse bg-secondary-800 rounded;
+}
+
+.loading-spinner {
+  @apply animate-spin rounded-full border-2 border-secondary-700 border-t-primary-500;
+}
+
+/* Modern Transitions */
+.transition-smooth {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+.transition-fast {
+  @apply transition-all duration-150 ease-in-out;
+}
+
+.transition-slow {
+  @apply transition-all duration-300 ease-in-out;
+}
