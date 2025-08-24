@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import axios from 'axios';
 
 interface User {
@@ -73,6 +73,9 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const authCheckRef = useRef<boolean>(false);
+  const requestInterceptorRef = useRef<number | null>(null);
+  const responseInterceptorRef = useRef<number | null>(null);
 
   // Set up axios defaults
   axios.defaults.baseURL = 'http://localhost:5000';
@@ -80,7 +83,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Add axios interceptors for authentication
   useEffect(() => {
     // Request interceptor to add token
-    const requestInterceptor = axios.interceptors.request.use(
+    requestInterceptorRef.current = axios.interceptors.request.use(
       (config) => {
         const token = localStorage.getItem('token');
         if (token) {
@@ -94,7 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     );
 
     // Response interceptor to handle auth errors
-    const responseInterceptor = axios.interceptors.response.use(
+    responseInterceptorRef.current = axios.interceptors.response.use(
       (response) => {
         return response;
       },
@@ -111,15 +114,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Cleanup interceptors
     return () => {
-      axios.interceptors.request.eject(requestInterceptor);
-      axios.interceptors.response.eject(responseInterceptor);
+      if (requestInterceptorRef.current !== null) {
+        axios.interceptors.request.eject(requestInterceptorRef.current);
+      }
+      if (responseInterceptorRef.current !== null) {
+        axios.interceptors.response.eject(responseInterceptorRef.current);
+      }
     };
   }, []);
 
   // Check for stored token on app load
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
+    if (token && !authCheckRef.current) {
+      authCheckRef.current = true;
       checkAuthStatus();
     } else {
       setLoading(false);
@@ -128,43 +136,84 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkAuthStatus = async () => {
     try {
+      setLoading(true);
       const response = await axios.get('/api/auth/me');
       setUser(transformUserData(response.data.data.user));
     } catch (error: any) {
       console.error('Auth check failed:', error);
-      // Don't clear token here, let the interceptor handle it
+      // Clear invalid token
+      localStorage.removeItem('token');
+      setUser(null);
     } finally {
       setLoading(false);
+      authCheckRef.current = false;
     }
   };
 
   const login = async (email: string, password: string) => {
     try {
+      setLoading(true);
       const response = await axios.post('/api/auth/login', { email, password });
       const { token, user } = response.data.data;
       
+      // Clear any existing token first
+      localStorage.removeItem('token');
+      
+      // Set new token and user
       localStorage.setItem('token', token);
       setUser(transformUserData(user));
+      
+      // Update axios default header
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Login failed');
+    } finally {
+      setLoading(false);
     }
   };
 
   const register = async (userData: RegisterData) => {
     try {
+      setLoading(true);
       const response = await axios.post('/api/auth/register', userData);
       const { token, user } = response.data.data;
       
+      // Clear any existing token first
+      localStorage.removeItem('token');
+      
+      // Set new token and user
       localStorage.setItem('token', token);
       setUser(transformUserData(user));
+      
+      // Update axios default header
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Registration failed');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
+  const logout = async () => {
+    try {
+      // Cleanup any active random connections first
+      try {
+        await axios.post('/api/random-connections/cleanup');
+      } catch (cleanupError) {
+        console.error('Random connection cleanup failed:', cleanupError);
+        // Continue with logout even if cleanup fails
+      }
+
+      // Call logout endpoint to invalidate token on server
+      await axios.post('/api/auth/logout');
+    } catch (error) {
+      console.error('Logout request failed:', error);
+    } finally {
+      // Clear local data regardless of server response
+      localStorage.removeItem('token');
+      delete axios.defaults.headers.common['Authorization'];
+      setUser(null);
+    }
   };
 
   const refreshUser = async () => {

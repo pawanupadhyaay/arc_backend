@@ -14,6 +14,14 @@ const protect = async (req, res, next) => {
     }
 
     const decoded = verifyToken(token);
+    
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token format.'
+      });
+    }
+
     const user = await User.findById(decoded.id).select('-password');
     
     if (!user) {
@@ -33,6 +41,7 @@ const protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
+    console.error('Auth middleware error:', error);
     return res.status(401).json({
       success: false,
       message: 'Invalid token.'
@@ -67,17 +76,25 @@ const optionalAuth = async (req, res, next) => {
     const token = extractToken(req);
     
     if (token) {
-      const decoded = verifyToken(token);
-      const user = await User.findById(decoded.id).select('-password');
-      
-      if (user && user.isActive) {
-        req.user = user;
+      try {
+        const decoded = verifyToken(token);
+        if (decoded && decoded.id) {
+          const user = await User.findById(decoded.id).select('-password');
+          
+          if (user && user.isActive) {
+            req.user = user;
+          }
+        }
+      } catch (tokenError) {
+        // Continue without authentication if token is invalid
+        console.log('Optional auth: Invalid token, continuing without auth');
       }
     }
     
     next();
   } catch (error) {
-    // Continue without authentication if token is invalid
+    console.error('Optional auth error:', error);
+    // Continue without authentication on error
     next();
   }
 };
@@ -87,6 +104,14 @@ const checkOwnership = (resourceModel, resourceIdParam = 'id') => {
   return async (req, res, next) => {
     try {
       const resourceId = req.params[resourceIdParam];
+      
+      if (!resourceId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Resource ID is required.'
+        });
+      }
+
       const resource = await resourceModel.findById(resourceId);
       
       if (!resource) {
@@ -99,6 +124,13 @@ const checkOwnership = (resourceModel, resourceIdParam = 'id') => {
       // Check if user owns the resource
       const ownerId = resource.author || resource.sender || resource.user || resource._id;
       
+      if (!ownerId) {
+        return res.status(500).json({
+          success: false,
+          message: 'Resource ownership cannot be determined.'
+        });
+      }
+
       if (ownerId.toString() !== req.user._id.toString()) {
         return res.status(403).json({
           success: false,
@@ -109,6 +141,7 @@ const checkOwnership = (resourceModel, resourceIdParam = 'id') => {
       req.resource = resource;
       next();
     } catch (error) {
+      console.error('Ownership check error:', error);
       return res.status(500).json({
         success: false,
         message: 'Error checking resource ownership.',

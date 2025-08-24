@@ -20,9 +20,11 @@ import {
   Award,
   Target,
   Flame,
-  Zap
+  Zap,
+  Clock
 } from 'lucide-react';
 import axios from 'axios';
+import LeaveRequestModal from '../components/LeaveRequestModal';
 
 interface User {
   _id: string;
@@ -73,6 +75,7 @@ interface User {
       joinedAt: string;
       leftAt?: string;
       isActive: boolean;
+      leaveRequestStatus?: 'none' | 'pending' | 'approved' | 'rejected';
     }>;
   };
   followers?: string[];
@@ -123,6 +126,8 @@ const Profile: React.FC = () => {
   const [followingCount, setFollowingCount] = useState(0);
   const [leavingTeam, setLeavingTeam] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showLeaveRequestModal, setShowLeaveRequestModal] = useState(false);
+  const [selectedTeamForLeave, setSelectedTeamForLeave] = useState<{ id: string; name: string } | null>(null);
 
   const isOwnProfile = currentUser?._id === userId;
 
@@ -229,6 +234,20 @@ const Profile: React.FC = () => {
   };
 
   const handleLeaveTeam = async (teamId: string, game: string) => {
+    if (game === 'Staff') {
+      // For staff members, show leave request modal
+      const teamRef = user?.playerInfo?.joinedTeams?.find(t => t.team._id === teamId);
+      if (teamRef) {
+        setSelectedTeamForLeave({
+          id: teamId,
+          name: teamRef.team.profile?.displayName || teamRef.team.username
+        });
+        setShowLeaveRequestModal(true);
+      }
+      return;
+    }
+
+    // For roster players, use the old direct leave system
     if (!window.confirm('Are you sure you want to leave this team?')) {
       return;
     }
@@ -237,17 +256,7 @@ const Profile: React.FC = () => {
       setLeavingTeam(teamId);
       console.log('Leaving team:', { teamId, game });
       
-      let response;
-      // For staff members, use a different endpoint or handle differently
-      if (game === 'Staff') {
-        // Staff members can leave team using the same endpoint
-        console.log('Staff member leaving team');
-        response = await axios.delete(`/api/users/${teamId}/roster/Staff/leave`);
-      } else {
-        // Regular roster players
-        console.log('Roster player leaving team');
-        response = await axios.delete(`/api/users/${teamId}/roster/${game}/leave`);
-      }
+      const response = await axios.delete(`/api/users/${teamId}/roster/${game}/leave`);
       
       console.log('Leave team response:', response.data);
       console.log('Team left successfully, refreshing user data...');
@@ -653,6 +662,18 @@ const Profile: React.FC = () => {
                                 ) : (
                                   <span className="px-2 py-1 bg-gray-500/20 text-gray-400 border border-gray-500/30 rounded-lg text-xs font-medium">Left</span>
                                 )}
+                                {teamRef.game === 'Staff' && teamRef.leaveRequestStatus && teamRef.leaveRequestStatus !== 'none' && (
+                                  <span className={`px-2 py-1 border rounded-lg text-xs font-medium flex items-center space-x-1 ${
+                                    teamRef.leaveRequestStatus === 'pending' 
+                                      ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' 
+                                      : teamRef.leaveRequestStatus === 'approved'
+                                      ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                                      : 'bg-red-500/20 text-red-400 border-red-500/30'
+                                  }`}>
+                                    <Clock className="h-3 w-3" />
+                                    <span className="capitalize">{teamRef.leaveRequestStatus}</span>
+                                  </span>
+                                )}
                               </div>
                               <div className="text-sm text-secondary-400">
                                 @{teamRef.team.username}
@@ -791,6 +812,24 @@ const Profile: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Leave Request Modal */}
+      {selectedTeamForLeave && (
+        <LeaveRequestModal
+          isOpen={showLeaveRequestModal}
+          onClose={() => {
+            setShowLeaveRequestModal(false);
+            setSelectedTeamForLeave(null);
+          }}
+          teamId={selectedTeamForLeave.id}
+          teamName={selectedTeamForLeave.name}
+          onSuccess={() => {
+            fetchUserProfile();
+            setMessage({ type: 'success', text: 'Leave request submitted successfully!' });
+            setTimeout(() => setMessage(null), 3000);
+          }}
+        />
+      )}
     </div>
   );
 };

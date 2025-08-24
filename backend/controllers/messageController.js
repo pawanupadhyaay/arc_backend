@@ -1008,7 +1008,8 @@ const handleInviteResponse = async (req, res) => {
           team.teamInfo.staff.push({
             user: userId,
             role: message.inviteData.role,
-            joinedAt: new Date()
+            joinedAt: new Date(),
+            isActive: true
           });
           
           await team.save();

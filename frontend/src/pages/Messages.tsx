@@ -694,10 +694,10 @@ const Messages: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-dark pt-24">
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid md:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 h-[calc(100vh-120px)]">
+        <div className="grid md:grid-cols-3 gap-6 h-full">
           {/* Chat List */}
-          <div className="bg-gradient-to-br from-secondary-950 to-secondary-900 border border-secondary-800/50 rounded-3xl p-6 shadow-large">
+          <div className="bg-gradient-to-br from-secondary-950 to-secondary-900 border border-secondary-800/50 rounded-3xl p-6 shadow-large flex flex-col">
             {/* Section Tabs */}
             <div className="flex mb-6 bg-secondary-900/50 rounded-2xl p-1">
               <button
@@ -789,7 +789,7 @@ const Messages: React.FC = () => {
                 )}
                 
                 {searchResults.length > 0 && (
-                  <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                  <div className="mt-2 space-y-1 max-h-24 overflow-y-auto">
                     {searchResults.map((user) => (
                       <button
                         key={user._id}
@@ -819,7 +819,7 @@ const Messages: React.FC = () => {
             )}
 
             {/* Chat/Group List */}
-            <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            <div className="space-y-2 flex-1 overflow-y-auto">
               {activeSection === 'dm' ? (
                 // DM Chats
                 dmChats.length > 0 ? (
@@ -950,7 +950,7 @@ const Messages: React.FC = () => {
           </div>
 
           {/* Chat Messages */}
-          <div className="md:col-span-2 bg-gradient-to-br from-secondary-950 to-secondary-900 border border-secondary-800/50 rounded-3xl p-6 shadow-large flex flex-col">
+          <div className="md:col-span-2 bg-gradient-to-br from-secondary-950 to-secondary-900 border border-secondary-800/50 rounded-3xl p-6 shadow-large flex flex-col h-full min-h-0">
             {selectedDmChat || selectedGroup ? (
               <>
                 {/* Chat Header */}
@@ -1007,7 +1007,7 @@ const Messages: React.FC = () => {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+                <div className="flex-1 overflow-y-auto space-y-4 mb-4 min-h-0">
                   {messages.map((message) => {
                     const isOwn = message.sender._id === user._id;
                     return (
@@ -1098,8 +1098,8 @@ const Messages: React.FC = () => {
 
         {/* Create Group Modal */}
         {showCreateGroup && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gradient-to-br from-secondary-950 to-secondary-900 border border-secondary-800/50 rounded-3xl p-6 shadow-large w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-gradient-to-br from-secondary-950 to-secondary-900 border border-secondary-800/50 rounded-3xl p-6 shadow-large w-full max-w-md max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-white">Create Group</h3>
                 <button
@@ -1256,8 +1256,8 @@ const Messages: React.FC = () => {
 
         {/* Group Settings Modal */}
         {showGroupSettings && selectedGroup && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gradient-to-br from-secondary-950 to-secondary-900 border border-secondary-800/50 rounded-3xl p-6 shadow-large w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-gradient-to-br from-secondary-950 to-secondary-900 border border-secondary-800/50 rounded-3xl p-6 shadow-large w-full max-w-md max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-white">Group Settings</h3>
                 <button

@@ -436,10 +436,10 @@ const addPlayerToRoster = async (req, res) => {
       });
     }
 
-    // Check if player is already in this roster
+    // Check if player is already in this roster (active only)
     const existingRoster = team.teamInfo.rosters.find(r => r.game === game);
     if (existingRoster) {
-      const existingPlayer = existingRoster.players.find(p => p.user.toString() === playerId);
+      const existingPlayer = existingRoster.players.find(p => p.user.toString() === playerId && p.isActive);
       if (existingPlayer) {
         return res.status(400).json({
           success: false,
@@ -554,8 +554,8 @@ const addStaffMember = async (req, res) => {
       });
     }
 
-    // Check if member is already in staff
-    const existingStaff = team.teamInfo.staff.find(s => s.user.toString() === memberId);
+    // Check if member is already in staff (active only)
+    const existingStaff = team.teamInfo.staff.find(s => s.user.toString() === memberId && s.isActive);
     if (existingStaff) {
       return res.status(400).json({
         success: false,
@@ -658,8 +658,8 @@ const addStaffMemberByUsername = async (req, res) => {
       });
     }
 
-    // Check if member is already in staff
-    const existingStaff = team.teamInfo.staff.find(s => s.user.toString() === memberId);
+    // Check if member is already in staff (active only)
+    const existingStaff = team.teamInfo.staff.find(s => s.user.toString() === memberId && s.isActive);
     if (existingStaff) {
       return res.status(400).json({
         success: false,
@@ -755,7 +755,7 @@ const removePlayerFromRoster = async (req, res) => {
       });
     }
 
-    const playerIndex = roster.players.findIndex(p => p.user.toString() === playerId);
+    const playerIndex = roster.players.findIndex(p => p.user.toString() === playerId && p.isActive);
     if (playerIndex === -1) {
       return res.status(404).json({
         success: false,
@@ -763,8 +763,9 @@ const removePlayerFromRoster = async (req, res) => {
       });
     }
 
-    // Completely remove from roster array
-    roster.players.splice(playerIndex, 1);
+    // Mark player as inactive
+    roster.players[playerIndex].isActive = false;
+    roster.players[playerIndex].leftAt = new Date();
     await team.save();
 
     // Mark as inactive in player's joinedTeams
@@ -830,8 +831,9 @@ const removeStaffMember = async (req, res) => {
       });
     }
 
-    // Completely remove from team's staff array
-    team.teamInfo.staff.splice(staffIndex, 1);
+    // Mark staff member as inactive
+    team.teamInfo.staff[staffIndex].isActive = false;
+    team.teamInfo.staff[staffIndex].leftAt = new Date();
     await team.save();
 
     // Update player's joinedTeams to mark as inactive
@@ -1228,33 +1230,63 @@ const leaveTeam = async (req, res) => {
     await player.save();
     console.log('Player saved successfully, updated membership:', teamMembership);
 
-    // For staff members, completely remove from team's staff array
+    // For staff members, check if they have a pending leave request
     if (game === 'Staff') {
-      const staffIndex = team.teamInfo.staff.findIndex(s => s.user.toString() === playerId);
-      if (staffIndex !== -1) {
-        console.log('Found staff member at index:', staffIndex);
-        // Completely remove the staff member from the team's staff array
-        team.teamInfo.staff.splice(staffIndex, 1);
-        console.log('Staff member completely removed from team');
+      const staffMember = team.teamInfo.staff.find(s => s.user.toString() === playerId && s.isActive);
+      if (staffMember) {
+        // Check if they have a pending leave request
+        const LeaveRequest = require('../models/LeaveRequest');
+        const pendingRequest = await LeaveRequest.findOne({
+          team: teamId,
+          staffMember: playerId,
+          status: 'pending'
+        });
+
+        if (pendingRequest) {
+          return res.status(400).json({
+            success: false,
+            message: 'You have a pending leave request. Please wait for admin approval or cancel the request first.'
+          });
+        }
+
+        // If no pending request, create one
+        const leaveRequest = new LeaveRequest({
+          team: teamId,
+          staffMember: playerId,
+          reason: 'Direct leave request'
+        });
+
+        await leaveRequest.save();
+
+        // Update staff member status
+        staffMember.leaveRequestStatus = 'pending';
         await team.save();
-        console.log('Team saved successfully for staff removal');
+
+        return res.status(200).json({
+          success: true,
+          message: 'Leave request created successfully. Please wait for admin approval.',
+          data: {
+            leaveRequestId: leaveRequest._id
+          }
+        });
       } else {
-        console.log('Staff member not found');
+        console.log('Staff member not found or not active');
         return res.status(404).json({
           success: false,
-          message: 'Staff member not found in team'
+          message: 'You are not an active staff member of this team'
         });
       }
     } else {
       // For roster players, completely remove from roster array
       const roster = team.teamInfo.rosters.find(r => r.game === game);
       if (roster) {
-        const playerIndex = roster.players.findIndex(p => p.user.toString() === playerId);
+        const playerIndex = roster.players.findIndex(p => p.user.toString() === playerId && p.isActive);
         if (playerIndex !== -1) {
           console.log('Found player in roster at index:', playerIndex);
-          // Completely remove the player from the roster
-          roster.players.splice(playerIndex, 1);
-          console.log('Player completely removed from roster');
+          // Mark player as inactive
+          roster.players[playerIndex].isActive = false;
+          roster.players[playerIndex].leftAt = new Date();
+          console.log('Player marked as inactive in roster');
           await team.save();
           console.log('Team saved successfully for roster removal');
         } else {
@@ -1290,7 +1322,7 @@ const leaveTeam = async (req, res) => {
         }
       };
       
-      // Notify team owner and staff
+      // Notify team owner and active staff members
       const teamOwnerId = team._id;
       const staffIds = team.teamInfo.staff
         .filter(staff => staff.isActive && staff.user.toString() !== playerId.toString())

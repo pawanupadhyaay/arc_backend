@@ -16,6 +16,9 @@ const Messages = React.lazy(() => import('./pages/Messages'));
 const Search = React.lazy(() => import('./pages/Search'));
 const Tournaments = React.lazy(() => import('./pages/Tournaments'));
 const Settings = React.lazy(() => import('./pages/Settings'));
+const RandomConnect = React.lazy(() => import('./pages/RandomConnect'));
+const MediaTest = React.lazy(() => import('./components/MediaTest'));
+const ConnectionTest = React.lazy(() => import('./components/ConnectionTest'));
 
 const LoadingScreen: React.FC = () => (
   <div className="min-h-screen bg-gradient-to-br from-black-950 via-gray-900 to-gray-800 flex items-center justify-center">
@@ -50,6 +53,9 @@ function App() {
                 <Route path="/search" element={<Search />} />
                 <Route path="/tournaments" element={<Tournaments />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/random-connect" element={<RandomConnect />} />
+                <Route path="/media-test" element={<MediaTest />} />
+                <Route path="/connection-test" element={<ConnectionTest />} />
               </Routes>
             </Suspense>
           </div>

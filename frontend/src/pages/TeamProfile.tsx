@@ -26,10 +26,12 @@ import {
   Briefcase,
   Users2,
   GamepadIcon,
-  Trash2
+  Trash2,
+  Clock
 } from 'lucide-react';
 import axios from 'axios';
 import AddPlayerModal from '../components/AddPlayerModal';
+import LeaveRequestsManagement from '../components/LeaveRequestsManagement';
 
 interface TeamUser {
   _id: string;
@@ -99,6 +101,7 @@ interface TeamUser {
       joinedAt: string;
       leftAt?: string;
       isActive?: boolean;
+      leaveRequestStatus?: 'none' | 'pending' | 'approved' | 'rejected';
     }>;
   };
   followers?: string[];
@@ -150,6 +153,7 @@ const TeamProfile: React.FC = () => {
   // Modal states
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [showLeaveRequestsModal, setShowLeaveRequestsModal] = useState(false);
   const [selectedGame, setSelectedGame] = useState<string>('');
   const [pendingInvites, setPendingInvites] = useState<{
     rosterInvites: any[];
@@ -685,13 +689,22 @@ const TeamProfile: React.FC = () => {
               <div className="flex items-center justify-between p-4 border-b border-secondary-800">
                 <h3 className="text-xl font-semibold text-white">Team Staff</h3>
                 {isOwnProfile && (
-                  <button 
-                    onClick={() => setShowAddStaffModal(true)}
-                    className="flex items-center space-x-2 bg-primary-500 text-white px-3 py-1 rounded-lg hover:bg-primary-600 transition-colors"
-                  >
-                    <UserPlus className="h-4 w-4" />
-                    <span>Add Staff</span>
-                  </button>
+                  <div className="flex space-x-2">
+                    <button 
+                      onClick={() => setShowLeaveRequestsModal(true)}
+                      className="flex items-center space-x-2 bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600 transition-colors"
+                    >
+                      <Clock className="h-4 w-4" />
+                      <span>Leave Requests</span>
+                    </button>
+                    <button 
+                      onClick={() => setShowAddStaffModal(true)}
+                      className="flex items-center space-x-2 bg-primary-500 text-white px-3 py-1 rounded-lg hover:bg-primary-600 transition-colors"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      <span>Add Staff</span>
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="p-4">
@@ -942,6 +955,16 @@ const TeamProfile: React.FC = () => {
         teamId={teamId || ''}
         type="staff"
         onSuccess={handleAddStaffSuccess}
+      />
+
+      {/* Leave Requests Management Modal */}
+      <LeaveRequestsManagement
+        isOpen={showLeaveRequestsModal}
+        onClose={() => setShowLeaveRequestsModal(false)}
+        teamId={teamId || ''}
+        onUpdate={() => {
+          fetchTeamProfile();
+        }}
       />
     </div>
   );

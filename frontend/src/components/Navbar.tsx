@@ -13,7 +13,8 @@ import {
   Bell,
   Crown,
   Settings,
-  Trophy
+  Trophy,
+  Users
 } from 'lucide-react';
 import NotificationDropdown from './NotificationDropdown';
 
@@ -105,6 +106,18 @@ const Navbar: React.FC = () => {
                <Trophy className={`h-5 w-5 group-hover:scale-110 transition-transform duration-300 ${isActive('/tournaments') ? 'animate-pulse' : ''}`} />
                <span className="text-xs font-semibold">Tournaments</span>
              </Link>
+             
+             <Link 
+               to="/random-connect" 
+               className={`flex flex-col items-center space-y-1 px-6 py-3 rounded-2xl transition-all duration-300 group ${
+                 isActive('/random-connect') 
+                   ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-glow' 
+                   : 'text-secondary-300 hover:text-white hover:bg-gradient-to-r hover:from-primary-500/10 hover:to-accent-500/10'
+               }`}
+             >
+               <Users className={`h-5 w-5 group-hover:scale-110 transition-transform duration-300 ${isActive('/random-connect') ? 'animate-pulse' : ''}`} />
+               <span className="text-xs font-semibold">Random Connect</span>
+             </Link>
           </div>
 
           {/* Right Section */}
@@ -166,6 +179,15 @@ const Navbar: React.FC = () => {
                       </Link>
                       
 
+                      
+                      <Link
+                        to="/random-connect"
+                        className="flex items-center space-x-3 p-3 text-secondary-300 hover:text-white hover:bg-gradient-to-r hover:from-primary-500/10 hover:to-accent-500/10 rounded-xl transition-all duration-300 group"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        <Users className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
+                        <span className="font-medium">Random Connect</span>
+                      </Link>
                       
                       <Link
                         to="/settings"
@@ -232,30 +254,42 @@ const Navbar: React.FC = () => {
                   <Search className="h-6 w-6 group-hover:scale-110 transition-transform duration-300" />
                   <span className="font-semibold text-sm">Discover</span>
                 </Link>
-                                 <Link
-                   to="/messages"
-                   className={`flex flex-col items-center space-y-2 p-4 rounded-2xl transition-all duration-300 group ${
-                     isActive('/messages') 
-                       ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-glow' 
-                       : 'text-secondary-300 hover:text-white hover:bg-gradient-to-r hover:from-primary-500/10 hover:to-accent-500/10'
-                   }`}
-                   onClick={() => setIsMobileMenuOpen(false)}
-                 >
-                   <MessageCircle className="h-6 w-6 group-hover:scale-110 transition-transform duration-300" />
-                   <span className="font-semibold text-sm">Messages</span>
-                 </Link>
-                 <Link
-                   to="/tournaments"
-                   className={`flex flex-col items-center space-y-2 p-4 rounded-2xl transition-all duration-300 group ${
-                     isActive('/tournaments') 
-                       ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-glow' 
-                       : 'text-secondary-300 hover:text-white hover:bg-gradient-to-r hover:from-primary-500/10 hover:to-accent-500/10'
-                   }`}
-                   onClick={() => setIsMobileMenuOpen(false)}
-                 >
-                   <Trophy className="h-6 w-6 group-hover:scale-110 transition-transform duration-300" />
-                   <span className="font-semibold text-sm">Tournaments</span>
-                 </Link>
+                <Link
+                  to="/messages"
+                  className={`flex flex-col items-center space-y-2 p-4 rounded-2xl transition-all duration-300 group ${
+                    isActive('/messages') 
+                      ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-glow' 
+                      : 'text-secondary-300 hover:text-white hover:bg-gradient-to-r hover:from-primary-500/10 hover:to-accent-500/10'
+                  }`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <MessageCircle className="h-6 w-6 group-hover:scale-110 transition-transform duration-300" />
+                  <span className="font-semibold text-sm">Messages</span>
+                </Link>
+                <Link
+                  to="/tournaments"
+                  className={`flex flex-col items-center space-y-2 p-4 rounded-2xl transition-all duration-300 group ${
+                    isActive('/tournaments') 
+                      ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-glow' 
+                      : 'text-secondary-300 hover:text-white hover:bg-gradient-to-r hover:from-primary-500/10 hover:to-accent-500/10'
+                  }`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Trophy className="h-6 w-6 group-hover:scale-110 transition-transform duration-300" />
+                  <span className="font-semibold text-sm">Tournaments</span>
+                </Link>
+                <Link
+                  to="/random-connect"
+                  className={`flex flex-col items-center space-y-2 p-4 rounded-2xl transition-all duration-300 group ${
+                    isActive('/random-connect') 
+                      ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-glow' 
+                      : 'text-secondary-300 hover:text-white hover:bg-gradient-to-r hover:from-primary-500/10 hover:to-accent-500/10'
+                  }`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Users className="h-6 w-6 group-hover:scale-110 transition-transform duration-300" />
+                  <span className="font-semibold text-sm">Random Connect</span>
+                </Link>
               </div>
               
               <div className="flex items-center justify-center">

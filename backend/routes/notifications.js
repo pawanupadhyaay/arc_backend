@@ -238,7 +238,8 @@ const acceptRosterInvite = async (req, res) => {
       user: userId,
       role: rosterInvite.role,
       inGameName: rosterInvite.inGameName,
-      joinedAt: new Date()
+      joinedAt: new Date(),
+      isActive: true
     });
 
     // Add team to player's joined teams
@@ -398,7 +399,8 @@ const acceptStaffInvite = async (req, res) => {
     team.teamInfo.staff.push({
       user: userId,
       role: staffInvite.role,
-      joinedAt: new Date()
+      joinedAt: new Date(),
+      isActive: true
     });
 
     await team.save();

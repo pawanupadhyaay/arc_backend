@@ -200,6 +200,11 @@ const userSchema = new mongoose.Schema({
       isActive: {
         type: Boolean,
         default: true
+      },
+      leaveRequestStatus: {
+        type: String,
+        enum: ['none', 'pending', 'approved', 'rejected'],
+        default: 'none'
       }
     }]
   },
@@ -288,6 +293,22 @@ userSchema.methods.populateTeamInfo = async function() {
         select: 'username profile.displayName profile.avatar'
       }
     ]);
+    
+    // Filter out inactive staff members after population, but keep those with pending leave requests
+    if (this.teamInfo && this.teamInfo.staff) {
+      this.teamInfo.staff = this.teamInfo.staff.filter(staff => 
+        staff.isActive || staff.leaveRequestStatus === 'pending'
+      );
+    }
+    
+    // Filter out inactive roster players after population
+    if (this.teamInfo && this.teamInfo.rosters) {
+      this.teamInfo.rosters.forEach(roster => {
+        if (roster.players) {
+          roster.players = roster.players.filter(player => player.isActive);
+        }
+      });
+    }
   }
   return this;
 };
