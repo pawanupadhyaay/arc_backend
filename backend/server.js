@@ -376,6 +376,28 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('video-state-change', (data) => {
+    try {
+      const { roomId, videoEnabled, targetUserId } = data;
+      const userId = connectedUsers.get(socket.id);
+      
+      console.log(`Video state change from ${userId} to ${targetUserId}:`, videoEnabled ? 'ON' : 'OFF');
+      
+      if (userId && roomId && targetUserId) {
+        // Forward video state change to target user
+        io.to(`user-${targetUserId}`).emit('video-state-change', {
+          fromUserId: userId,
+          videoEnabled
+        });
+        console.log(`Video state change forwarded to user ${targetUserId}`);
+      } else {
+        console.log('Missing data for video state change:', { userId, roomId, targetUserId });
+      }
+    } catch (error) {
+      console.error('Error handling video state change:', error);
+    }
+  });
+
   // Handle errors
   socket.on('error', (error) => {
     console.error('Socket error:', error);
