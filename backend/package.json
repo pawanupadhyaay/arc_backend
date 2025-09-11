@@ -1,11 +1,13 @@
 {
-  "name": "gaming-social-backend",
+  "name": "arc-backend",
   "version": "1.0.0",
-  "description": "Backend for Gaming Social Media Platform",
+  "description": "Backend for ARC Gaming Platform",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "monitor": "node monitor-server.js",
+    "create-admin": "node scripts/create-admin.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -36,6 +38,7 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "kill-port": "^2.0.1",
     "nodemon": "^3.0.1"
   }
 }

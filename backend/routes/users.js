@@ -17,7 +17,11 @@ const {
   cancelRosterInvite,
   cancelStaffInvite,
   cancelStaffInviteByUsername,
-  leaveTeam
+  leaveTeam,
+  addGamingStat,
+  updateGamingStat,
+  deleteGamingStat,
+  getGamingStats
 } = require('../controllers/userController');
 
 const router = express.Router();
@@ -44,5 +48,11 @@ router.get('/:teamId/pending-invites', protect, getTeamPendingInvites);
 router.delete('/roster-invite/:inviteId', protect, cancelRosterInvite);
 router.delete('/staff-invite/:inviteId', protect, cancelStaffInvite);
 router.delete('/:teamId/staff/cancel-by-username', protect, cancelStaffInviteByUsername);
+
+// Gaming Stats routes
+router.get('/gaming-stats', protect, getGamingStats);
+router.post('/gaming-stats', protect, addGamingStat);
+router.put('/gaming-stats/:statId', protect, updateGamingStat);
+router.delete('/gaming-stats/:statId', protect, deleteGamingStat);
 
 module.exports = router;

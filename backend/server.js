@@ -11,6 +11,7 @@ const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 const { handleValidationErrors } = require('./middleware/validation');
 const { setIoInstance } = require('./utils/notificationEmitter');
+const jwt = require('jsonwebtoken');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -21,6 +22,8 @@ const notificationRoutes = require('./routes/notifications');
 const tournamentRoutes = require('./routes/tournaments');
 const leaveRequestRoutes = require('./routes/leaveRequests');
 const randomConnectionRoutes = require('./routes/randomConnections');
+const recruitmentRoutes = require('./routes/recruitment');
+const adminRoutes = require('./routes/admin');
 
 // Connect to database
 connectDB();
@@ -28,80 +31,74 @@ connectDB();
 const app = express();
 const server = createServer(app);
 
-// Socket.IO setup with better error handling
+// Simple Socket.IO setup
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST"]
+    origin: [
+      "https://arc.squadhunt.com",
+      "http://localhost:3000",
+      "http://localhost:3001", 
+      "http://127.0.0.1:3000"
+    ],
+    methods: ["GET", "POST"],
+    credentials: true
   },
   pingTimeout: 60000,
   pingInterval: 25000,
   transports: ['websocket', 'polling']
 });
 
+// Socket authentication middleware
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token;
+    console.log('Socket connection attempt with token:', !!token);
+    
+    if (!token) {
+      console.error('Socket connection attempt without token');
+      return next(new Error('Authentication token required'));
+    }
+
+    console.log('Verifying token...');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decoded successfully:', { id: decoded.id, username: decoded.username });
+    
+    if (!decoded.id) {
+      console.error('Socket connection attempt with invalid token (no userId)');
+      return next(new Error('Invalid token: no userId'));
+    }
+    
+    socket.userId = decoded.id;
+    socket.user = decoded;
+    console.log(`Socket authenticated successfully for user: ${decoded.id}`);
+    next();
+  } catch (error) {
+    console.error('Socket authentication error:', error.message);
+    console.error('Error details:', error);
+    next(new Error('Authentication failed'));
+  }
+});
+
 // Set io instance for notification emitter
 setIoInstance(io);
+
+// Set io instance for message controller
+const { setIoInstance: setMessageIoInstance } = require('./controllers/messageController');
+setMessageIoInstance(io);
 
 // Make io available to routes
 app.set('io', io);
 
-// Track connected users to prevent duplicates
+// Simple user tracking
 const connectedUsers = new Map();
-
-// Import models for cleanup
-const RandomConnection = require('./models/RandomConnection');
-const ConnectionQueue = require('./models/ConnectionQueue');
-
-// Cleanup function for user random connections
-const cleanupUserRandomConnections = async (userId, io) => {
-  try {
-    // Find all active connections for the user
-    const activeConnections = await RandomConnection.find({
-      'participants.userId': userId,
-      status: { $in: ['waiting', 'active'] }
-    });
-
-    // Update each connection and notify other participants
-    for (const connection of activeConnections) {
-      connection.status = 'disconnected';
-      connection.endTime = new Date();
-      connection.duration = Math.floor((connection.endTime - connection.startTime) / 1000);
-      
-      // Mark user as left
-      const participant = connection.participants.find(p => p.userId.toString() === userId.toString());
-      if (participant) {
-        participant.leftAt = new Date();
-      }
-
-      await connection.save();
-
-      // Notify other participants
-      const otherParticipants = connection.participants.filter(p => p.userId.toString() !== userId.toString());
-      otherParticipants.forEach(participant => {
-        io.to(`user-${participant.userId}`).emit('partner-disconnected', {
-          roomId: connection.roomId,
-          disconnectedUserId: userId,
-          reason: 'Connection lost'
-        });
-      });
-    }
-
-    // Remove user from any queue
-    await ConnectionQueue.deleteMany({ userId });
-
-    console.log(`Cleaned up ${activeConnections.length} random connections for user ${userId}`);
-  } catch (error) {
-    console.error('Error cleaning up user random connections:', error);
-  }
-};
 
 // Security middleware
 app.use(helmet());
 
-// Rate limiting
+// Rate limiting - more lenient
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // Increased limit
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
@@ -109,9 +106,13 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// CORS
+// CORS for localhost only
 app.use(cors({
-  origin: ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"],
+  origin: [
+    "http://localhost:3000", 
+    "http://localhost:3001", 
+    "http://127.0.0.1:3000"
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -129,13 +130,16 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Health check route
+// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Gaming Social Platform API is running!',
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '1.0.0',
+    uptime: process.uptime(),
+    memoryUsage: process.memoryUsage(),
+    connectedUsers: connectedUsers.size
   });
 });
 
@@ -158,125 +162,60 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/leave-requests', leaveRequestRoutes);
 app.use('/api/random-connections', randomConnectionRoutes);
+app.use('/api/recruitment', recruitmentRoutes);
+app.use('/api/admin', adminRoutes);
 
-// Socket.IO connection handling with improved error handling
+// Socket handling with duplicate connection management
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('New socket connection:', socket.id);
+  
+  const userId = socket.userId;
+  if (!userId) {
+    console.log('No userId, disconnecting');
+    socket.disconnect();
+    return;
+  }
+  
+// Track unique users and their connections
+const userConnections = new Map(); // userId -> Set of socketIds
 
-  // Join user to their personal room for notifications
+// Add this connection to user's connection set
+if (!userConnections.has(userId)) {
+  userConnections.set(userId, new Set());
+}
+userConnections.get(userId).add(socket.id);
+
+// Track all connections
+connectedUsers.set(socket.id, userId);
+
+// Count unique users
+const uniqueUserCount = userConnections.size;
+console.log(`User ${userId} connected. Total connections: ${connectedUsers.size}, Unique users: ${uniqueUserCount}`);
+
+  // Join user room
   socket.on('join-user-room', (userId) => {
-    try {
-      // Remove user from previous room if exists
-      const previousUserId = connectedUsers.get(socket.id);
-      if (previousUserId && previousUserId !== userId) {
-        socket.leave(`user-${previousUserId}`);
-        console.log(`User ${previousUserId} left their previous room`);
-      }
-
-      // Join new room
+    if (userId) {
       socket.join(`user-${userId}`);
-      connectedUsers.set(socket.id, userId);
-      console.log(`User ${userId} joined their personal room`);
-    } catch (error) {
-      console.error('Error joining user room:', error);
+      console.log(`User ${userId} joined their room`);
     }
   });
 
-  // Join chat room
-  socket.on('join-chat-room', (roomId) => {
-    try {
-      socket.join(`chat-${roomId}`);
-      console.log(`User joined chat room: ${roomId}`);
-    } catch (error) {
-      console.error('Error joining chat room:', error);
-    }
-  });
-
-  // Leave chat room
-  socket.on('leave-chat-room', (roomId) => {
-    try {
-      socket.leave(`chat-${roomId}`);
-      console.log(`User left chat room: ${roomId}`);
-    } catch (error) {
-      console.error('Error leaving chat room:', error);
-    }
-  });
-
-  // Handle new message
-  socket.on('send-message', (data) => {
-    try {
-      const { recipientId, chatRoomId, message } = data;
-      
-      if (recipientId) {
-        // Direct message
-        io.to(`user-${recipientId}`).emit('new-message', message);
-      } else if (chatRoomId) {
-        // Group message
-        socket.to(`chat-${chatRoomId}`).emit('new-message', message);
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-    }
-  });
-
-  // Handle typing indicators
-  socket.on('typing-start', (data) => {
-    try {
-      const { recipientId, chatRoomId, user } = data;
-      
-      if (recipientId) {
-        socket.to(`user-${recipientId}`).emit('user-typing', user);
-      } else if (chatRoomId) {
-        socket.to(`chat-${chatRoomId}`).emit('user-typing', user);
-      }
-    } catch (error) {
-      console.error('Error handling typing start:', error);
-    }
-  });
-
-  socket.on('typing-stop', (data) => {
-    try {
-      const { recipientId, chatRoomId, user } = data;
-      
-      if (recipientId) {
-        socket.to(`user-${recipientId}`).emit('user-stopped-typing', user);
-      } else if (chatRoomId) {
-        socket.to(`chat-${chatRoomId}`).emit('user-stopped-typing', user);
-      }
-    } catch (error) {
-      console.error('Error handling typing stop:', error);
-    }
-  });
-
-  // Handle notifications
-  socket.on('send-notification', (data) => {
-    try {
-      const { recipientId, notification } = data;
-      io.to(`user-${recipientId}`).emit('new-notification', notification);
-    } catch (error) {
-      console.error('Error sending notification:', error);
-    }
-  });
-
-  // Handle online status
-  socket.on('user-online', (userId) => {
-    try {
-      socket.broadcast.emit('user-status-change', { userId, status: 'online' });
-    } catch (error) {
-      console.error('Error handling user online status:', error);
-    }
+  // Handle ping
+  socket.on('ping', () => {
+    socket.emit('pong');
   });
 
   // Random Connect Events
   socket.on('join-random-queue', (data) => {
     try {
       const { selectedGame, videoEnabled } = data;
-      const userId = connectedUsers.get(socket.id);
       
-      if (userId) {
-        socket.join(`random-queue-${selectedGame}`);
-        console.log(`User ${userId} joined random queue for ${selectedGame}`);
+      if (!selectedGame) {
+        console.error('Attempted to join random queue without selected game');
+        return;
       }
+      
+      socket.join(`random-queue-${selectedGame}`);
     } catch (error) {
       console.error('Error joining random queue:', error);
     }
@@ -285,12 +224,13 @@ io.on('connection', (socket) => {
   socket.on('leave-random-queue', (data) => {
     try {
       const { selectedGame } = data;
-      const userId = connectedUsers.get(socket.id);
       
-      if (userId) {
-        socket.leave(`random-queue-${selectedGame}`);
-        console.log(`User ${userId} left random queue for ${selectedGame}`);
+      if (!selectedGame) {
+        console.error('Attempted to leave random queue without selected game');
+        return;
       }
+      
+      socket.leave(`random-queue-${selectedGame}`);
     } catch (error) {
       console.error('Error leaving random queue:', error);
     }
@@ -298,9 +238,12 @@ io.on('connection', (socket) => {
 
   socket.on('join-random-room', (roomId) => {
     try {
-      const userId = connectedUsers.get(socket.id);
+      if (!roomId) {
+        console.error('Attempted to join random room without roomId');
+        return;
+      }
+      
       socket.join(`random-room-${roomId}`);
-      console.log(`User ${userId} joined random room: ${roomId}`);
       
       // Send confirmation back to the user
       socket.emit('room-joined', { roomId });
@@ -317,8 +260,12 @@ io.on('connection', (socket) => {
 
   socket.on('leave-random-room', (roomId) => {
     try {
+      if (!roomId) {
+        console.error('Attempted to leave random room without roomId');
+        return;
+      }
+      
       socket.leave(`random-room-${roomId}`);
-      console.log(`User left random room: ${roomId}`);
     } catch (error) {
       console.error('Error leaving random room:', error);
     }
@@ -327,16 +274,18 @@ io.on('connection', (socket) => {
   socket.on('random-connection-message', (data) => {
     try {
       const { roomId, message } = data;
-      const userId = connectedUsers.get(socket.id);
       
-      if (userId && roomId) {
-        // Forward message to other users in the room
-        socket.to(`random-room-${roomId}`).emit('random-connection-message', {
-          sender: userId,
-          message,
-          timestamp: new Date()
-        });
+      if (!roomId || !message) {
+        console.error('Missing data for random connection message');
+        return;
       }
+      
+      // Forward message to other users in the room
+      socket.to(`random-room-${roomId}`).emit('random-connection-message', {
+        sender: userId,
+        message,
+        timestamp: new Date()
+      });
     } catch (error) {
       console.error('Error handling random connection message:', error);
     }
@@ -345,32 +294,19 @@ io.on('connection', (socket) => {
   socket.on('webrtc-signal', (data) => {
     try {
       const { roomId, signal, targetUserId } = data;
-      const userId = connectedUsers.get(socket.id);
       
-      console.log(`WebRTC signal from ${userId} to ${targetUserId}:`, signal.type);
-      console.log('Signal data:', JSON.stringify(signal, null, 2));
-      
-      if (userId && roomId && targetUserId) {
-        // Forward WebRTC signaling to target user
-        io.to(`user-${targetUserId}`).emit('webrtc-signal', {
-          signal,
-          fromUserId: userId,
-          roomId
-        });
-        console.log(`WebRTC signal forwarded to user ${targetUserId}`);
-        
-        // Also log if the target user is connected
-        const targetSocket = Array.from(io.sockets.sockets.values()).find(s => 
-          connectedUsers.get(s.id) === targetUserId
-        );
-        if (targetSocket) {
-          console.log(`Target user ${targetUserId} is connected via socket ${targetSocket.id}`);
-        } else {
-          console.log(`Target user ${targetUserId} is NOT connected`);
-        }
-      } else {
-        console.log('Missing data for WebRTC signal:', { userId, roomId, targetUserId });
+      if (!roomId || !targetUserId || !signal) {
+        console.error('Missing data for WebRTC signal');
+        return;
       }
+      
+      
+      // Forward WebRTC signaling to target user
+      io.to(`user-${targetUserId}`).emit('webrtc-signal', {
+        signal,
+        fromUserId: userId,
+        roomId
+      });
     } catch (error) {
       console.error('Error handling WebRTC signal:', error);
     }
@@ -379,46 +315,44 @@ io.on('connection', (socket) => {
   socket.on('video-state-change', (data) => {
     try {
       const { roomId, videoEnabled, targetUserId } = data;
-      const userId = connectedUsers.get(socket.id);
       
-      console.log(`Video state change from ${userId} to ${targetUserId}:`, videoEnabled ? 'ON' : 'OFF');
-      
-      if (userId && roomId && targetUserId) {
-        // Forward video state change to target user
-        io.to(`user-${targetUserId}`).emit('video-state-change', {
-          fromUserId: userId,
-          videoEnabled
-        });
-        console.log(`Video state change forwarded to user ${targetUserId}`);
-      } else {
-        console.log('Missing data for video state change:', { userId, roomId, targetUserId });
+      if (!roomId || !targetUserId) {
+        console.error('Missing data for video state change');
+        return;
       }
+      
+      
+      // Forward video state change to target user
+      io.to(`user-${targetUserId}`).emit('video-state-change', {
+        fromUserId: userId,
+        videoEnabled
+      });
     } catch (error) {
       console.error('Error handling video state change:', error);
     }
   });
 
-  // Handle errors
-  socket.on('error', (error) => {
-    console.error('Socket error:', error);
-  });
-
+  // Disconnect handling
   socket.on('disconnect', (reason) => {
-    try {
-      console.log('User disconnected:', socket.id, 'Reason:', reason);
-      
-      // Clean up user tracking
-      const userId = connectedUsers.get(socket.id);
-      if (userId) {
-        // Cleanup random connections if user disconnects
-        cleanupUserRandomConnections(userId, io);
-        
-        connectedUsers.delete(socket.id);
-        console.log(`Cleaned up user ${userId} from tracking`);
-      }
-    } catch (error) {
-      console.error('Error handling disconnect:', error);
+    // Only log and cleanup if it's not a manual disconnect
+    if (!socket._manualDisconnect) {
+      console.log(`User ${userId} disconnected: ${reason}`);
     }
+    
+    // Remove from user connections
+    if (userConnections.has(userId)) {
+      userConnections.get(userId).delete(socket.id);
+      // If no more connections for this user, remove the user entirely
+      if (userConnections.get(userId).size === 0) {
+        userConnections.delete(userId);
+      }
+    }
+    
+    // Remove from all connections
+    connectedUsers.delete(socket.id);
+    
+    const uniqueUserCount = userConnections.size;
+    console.log(`Remaining connections: ${connectedUsers.size}, Unique users: ${uniqueUserCount}`);
   });
 });
 
@@ -428,6 +362,20 @@ app.use(handleValidationErrors);
 // Global error handler
 app.use(errorHandler);
 
+// Additional comprehensive error handler for any unhandled errors
+app.use((err, req, res, next) => {
+  console.error('Express error handler caught:', err);
+  
+  // Don't crash the server, just send error response
+  if (!res.headersSent) {
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error occurred',
+      error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+    });
+  }
+});
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({
@@ -435,6 +383,30 @@ app.use('*', (req, res) => {
     message: 'API endpoint not found'
   });
 });
+
+// Cleanup stale connections every 5 minutes
+setInterval(() => {
+  let cleanedCount = 0;
+  for (const [socketId, userId] of connectedUsers.entries()) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (!socket || !socket.connected) {
+      connectedUsers.delete(socketId);
+      
+      // Also clean up userConnections
+      if (userConnections.has(userId)) {
+        userConnections.get(userId).delete(socketId);
+        if (userConnections.get(userId).size === 0) {
+          userConnections.delete(userId);
+        }
+      }
+      
+      cleanedCount++;
+    }
+  }
+  if (cleanedCount > 0) {
+    console.log(`Cleaned up ${cleanedCount} stale connections. Active: ${connectedUsers.size}, Unique users: ${userConnections.size}`);
+  }
+}, 5 * 60 * 1000);
 
 const PORT = process.env.PORT || 5000;
 
@@ -447,40 +419,13 @@ server.listen(PORT, '0.0.0.0', () => {
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.log('Unhandled Promise Rejection:', err.message);
-  console.error(err);
-  // Don't exit immediately, give time for cleanup
-  setTimeout(() => {
-    server.close(() => {
-      process.exit(1);
-    });
-  }, 1000);
+  // Don't exit, just log
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   console.log('Uncaught Exception:', err.message);
-  console.error(err);
-  // Don't exit immediately, give time for cleanup
-  setTimeout(() => {
-    process.exit(1);
-  }, 1000);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
-    process.exit(0);
-  });
+  // Don't exit, just log
 });
 
 module.exports = { app, io };

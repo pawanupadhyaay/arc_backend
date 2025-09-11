@@ -69,7 +69,7 @@ const tournamentSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 2,
-    max: 16
+    max: 32
   },
   numberOfGroups: {
     type: Number,
@@ -105,6 +105,11 @@ const tournamentSchema = new mongoose.Schema({
   }],
   groups: [{
     name: String,
+    round: {
+      type: Number,
+      default: 1
+    },
+    groupLetter: String,
     participants: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
@@ -121,29 +126,61 @@ const tournamentSchema = new mongoose.Schema({
   rules: [{
     type: String
   }],
-  broadcastChannels: [{
-    name: String,
+  // Group-wise messaging system
+  groupMessages: [{
+    groupId: String,
+    round: {
+      type: Number,
+      default: 1
+    },
+    messages: [{
+      sender: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      message: String,
+      timestamp: {
+        type: Date,
+        default: Date.now
+      },
+      type: {
+        type: String,
+        enum: ['text', 'announcement', 'system'],
+        default: 'text'
+      }
+    }]
+  }],
+  
+  // Tournament-wide messaging system
+  tournamentMessages: [{
+    sender: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    message: String,
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
     type: {
       type: String,
-      enum: ['Text Messages', 'Voice', 'Video'],
-      default: 'Text Messages'
-    },
-    description: String,
-    channelId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Message'
+      enum: ['text', 'announcement', 'system'],
+      default: 'text'
     }
   }],
   matches: [{
     round: Number,
     groupId: String,
+    groupName: String,
     team1: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
+      ref: 'User',
+      required: false
     },
     team2: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
+      ref: 'User',
+      required: false
     },
     winner: {
       type: mongoose.Schema.Types.ObjectId,
@@ -155,11 +192,185 @@ const tournamentSchema = new mongoose.Schema({
       default: 'Scheduled'
     },
     scheduledTime: Date,
+    scheduledDate: String, // YYYY-MM-DD format for easy filtering
+    scheduledTimeString: String, // HH:MM format for display
+    matchDuration: {
+      type: Number,
+      default: 30 // minutes
+    },
+    venue: {
+      type: String,
+      default: 'Online'
+    },
+    description: String,
     result: {
       team1Score: Number,
       team2Score: Number
+    },
+    // Schedule management fields
+    isRescheduled: {
+      type: Boolean,
+      default: false
+    },
+    originalScheduledTime: Date,
+    rescheduleReason: String,
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    lastModifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
     }
   }],
+  
+  // Schedule configuration
+  scheduleConfig: {
+    defaultMatchDuration: {
+      type: Number,
+      default: 30 // minutes
+    },
+    timeSlots: [{
+      startTime: String, // HH:MM format
+      endTime: String,   // HH:MM format
+      isActive: {
+        type: Boolean,
+        default: true
+      }
+    }],
+    availableDates: [{
+      date: String, // YYYY-MM-DD format
+      isActive: {
+        type: Boolean,
+        default: true
+      },
+      maxMatches: {
+        type: Number,
+        default: 10
+      }
+    }],
+    timezone: {
+      type: String,
+      default: 'Asia/Kolkata'
+    }
+  },
+  
+  // Results and Qualification System
+  groupResults: [{
+    round: {
+      type: Number,
+      required: true
+    },
+    groupId: {
+      type: String,
+      required: true
+    },
+    groupName: {
+      type: String,
+      required: true
+    },
+    teams: [{
+      teamId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      teamName: {
+        type: String,
+        required: true
+      },
+      teamLogo: {
+        type: String,
+        default: null
+      },
+      wins: {
+        type: Number,
+        default: 0
+      },
+      finishPoints: {
+        type: Number,
+        default: 0
+      },
+      positionPoints: {
+        type: Number,
+        default: 0
+      },
+      totalPoints: {
+        type: Number,
+        default: 0
+      },
+      rank: {
+        type: Number,
+        default: 0
+      },
+      qualified: {
+        type: Boolean,
+        default: false
+      }
+    }],
+    submittedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  
+  qualifications: [{
+    round: {
+      type: Number,
+      required: true
+    },
+    qualifiedTeams: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }],
+    qualificationCriteria: {
+      type: Number,
+      default: 8 // teams that qualify per group
+    },
+    totalQualified: {
+      type: Number,
+      default: 0
+    },
+    qualifiedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  
+  roundSettings: [{
+    round: {
+      type: Number,
+      required: true
+    },
+    teamsPerGroup: {
+      type: Number,
+      required: true
+    },
+    qualificationCriteria: {
+      type: Number,
+      default: 8
+    },
+    totalGroups: {
+      type: Number,
+      required: true
+    },
+    totalTeams: {
+      type: Number,
+      required: true
+    }
+  }],
+  
+  qualificationSettings: {
+    teamsPerGroup: {
+      type: Number,
+      default: 8
+    },
+    nextRoundTeamsPerGroup: {
+      type: Number,
+      default: 16
+    }
+  },
+  
   winners: [{
     position: Number,
     team: {

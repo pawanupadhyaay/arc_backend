@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const { generateToken, generateRefreshToken } = require('../utils/jwt');
-const { uploadAvatar } = require('../utils/cloudinary');
+const { uploadAvatar, uploadImage } = require('../utils/cloudinary');
 
 // Register new user
 const register = async (req, res) => {
@@ -71,7 +71,7 @@ const register = async (req, res) => {
     const user = await User.create(userData);
 
     // Generate tokens
-    const token = generateToken({ id: user._id, userType: user.userType });
+    const token = generateToken({ id: user._id, username: user.username, userType: user.userType });
     const refreshToken = generateRefreshToken({ id: user._id });
 
     // Remove password from response
@@ -143,7 +143,7 @@ const login = async (req, res) => {
     await user.save();
 
     // Generate tokens
-    const token = generateToken({ id: user._id, userType: user.userType });
+    const token = generateToken({ id: user._id, username: user.username, userType: user.userType });
     const refreshToken = generateRefreshToken({ id: user._id });
 
     // Remove password from response
@@ -214,6 +214,19 @@ const updateProfile = async (req, res) => {
 
     // Build update object for nested fields
     const updateObject = {};
+    
+    // Handle username update with uniqueness check
+    if (updates.username && updates.username !== req.user.username) {
+      // Check if username is already taken
+      const existingUser = await User.findOne({ username: updates.username });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Username is already taken'
+        });
+      }
+      updateObject.username = updates.username;
+    }
     
     // Handle profile updates
     if (updates.displayName) updateObject['profile.displayName'] = updates.displayName;
@@ -305,6 +318,134 @@ const changePassword = async (req, res) => {
   }
 };
 
+// Upload profile picture
+const uploadProfilePicture = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      });
+    }
+
+    // Upload image to cloudinary
+    const uploadResult = await uploadAvatar(req.file);
+
+    // Update user's profile with new avatar
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { 'profile.avatar': uploadResult.url },
+      { new: true }
+    ).select('-password');
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile picture uploaded successfully',
+      data: {
+        imageUrl: uploadResult.url,
+        user
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload profile picture',
+      error: error.message
+    });
+  }
+};
+
+// Upload banner
+const uploadBanner = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      });
+    }
+
+    // Upload banner to cloudinary with different settings
+    const uploadResult = await uploadImage(req.file, 'gaming-social/banners');
+
+    // Update user's profile with new banner
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { 'profile.banner': uploadResult.url },
+      { new: true }
+    ).select('-password');
+
+    res.status(200).json({
+      success: true,
+      message: 'Banner uploaded successfully',
+      data: {
+        imageUrl: uploadResult.url,
+        user
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload banner',
+      error: error.message
+    });
+  }
+};
+
+// Delete user account
+const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password is required to delete account'
+      });
+    }
+
+    // Get user with password for verification
+    const user = await User.findById(userId).select('+password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Verify password
+    const isPasswordValid = await user.comparePassword(password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid password'
+      });
+    }
+
+    // Mark user as inactive instead of hard delete to preserve data integrity
+    user.isActive = false;
+    user.deletedAt = new Date();
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Account deleted successfully'
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete account',
+      error: error.message
+    });
+  }
+};
+
 // Logout user (client-side token removal)
 const logout = async (req, res) => {
   try {
@@ -327,5 +468,8 @@ module.exports = {
   getMe,
   updateProfile,
   changePassword,
-  logout
+  deleteAccount,
+  logout,
+  uploadProfilePicture,
+  uploadBanner
 };

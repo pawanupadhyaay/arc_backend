@@ -1,55 +1,32 @@
-let ioInstance = null;
+let io;
 
-// Function to set the io instance (called from server.js)
-const setIoInstance = (io) => {
-  ioInstance = io;
+const setIoInstance = (ioInstance) => {
+  io = ioInstance;
 };
 
-// Function to emit notification to a specific user
-const emitNotification = (recipientId, notification) => {
-  try {
-    if (!ioInstance) {
-      console.log('Socket.IO instance not available, notification will be fetched on next poll');
-      return;
-    }
-    
-    console.log('Emitting notification to user:', recipientId);
-    console.log('Notification data:', {
-      id: notification._id,
-      type: notification.type,
-      title: notification.title,
-      message: notification.message
-    });
-    
-    ioInstance.to(`user-${recipientId}`).emit('new-notification', notification);
-    console.log('Notification emitted successfully');
-  } catch (error) {
-    console.error('Error emitting notification:', error);
+const emitNotification = (userId, notification) => {
+  if (io) {
+    io.to(`user_${userId}`).emit('new-notification', notification);
   }
 };
 
-// Function to emit notification to multiple users
-const emitNotificationToMultiple = (recipientIds, notification) => {
+const createAndEmitNotification = async (notificationData) => {
   try {
-    if (!ioInstance) {
-      console.log('Socket.IO instance not available, notifications will be fetched on next poll');
-      return;
-    }
+    const Notification = require('../models/Notification');
+    const notification = await Notification.createNotification(notificationData);
     
-    console.log('Emitting notification to multiple users:', recipientIds.length);
+    // Emit real-time notification
+    emitNotification(notification.recipient, notification);
     
-    recipientIds.forEach(recipientId => {
-      ioInstance.to(`user-${recipientId}`).emit('new-notification', notification);
-    });
-    
-    console.log('Notifications emitted to all recipients');
+    return notification;
   } catch (error) {
-    console.error('Error emitting notifications to multiple users:', error);
+    console.error('Error creating and emitting notification:', error);
+    throw error;
   }
 };
 
 module.exports = {
+  setIoInstance,
   emitNotification,
-  emitNotificationToMultiple,
-  setIoInstance
+  createAndEmitNotification
 };

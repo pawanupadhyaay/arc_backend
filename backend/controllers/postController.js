@@ -2,6 +2,7 @@ const Post = require('../models/Post');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { uploadMultipleFiles } = require('../utils/cloudinary');
+const { createLikeNotification, createCommentNotification } = require('../utils/notificationService');
 
 // Create new post
 const createPost = async (req, res) => {
@@ -245,16 +246,7 @@ const toggleLike = async (req, res) => {
 
       // Create notification for post author (if not liking own post)
       if (post.author.toString() !== userId.toString()) {
-        await Notification.createNotification({
-          recipient: post.author,
-          sender: userId,
-          type: 'like',
-          title: 'New Like',
-          message: `${req.user.profile.displayName} liked your post`,
-          data: {
-            postId: post._id
-          }
-        });
+        await createLikeNotification(post.author, userId, post._id);
       }
     }
 
@@ -317,16 +309,7 @@ const addComment = async (req, res) => {
 
     // Create notification for post author (if not commenting on own post)
     if (post.author.toString() !== userId.toString()) {
-      await Notification.createNotification({
-        recipient: post.author,
-        sender: userId,
-        type: 'comment',
-        title: 'New Comment',
-        message: `${req.user.profile.displayName} commented on your post`,
-        data: {
-          postId: post._id
-        }
-      });
+      await createCommentNotification(post.author, userId, post._id, text.trim());
     }
 
     const newComment = post.comments[post.comments.length - 1];

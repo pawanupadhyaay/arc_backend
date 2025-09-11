@@ -8,7 +8,10 @@ const {
   getMe,
   updateProfile,
   changePassword,
-  logout
+  deleteAccount,
+  logout,
+  uploadProfilePicture,
+  uploadBanner
 } = require('../controllers/authController');
 
 const router = express.Router();
@@ -52,12 +55,34 @@ const changePasswordValidation = [
     .withMessage('New password must be at least 6 characters long')
 ];
 
+const deleteAccountValidation = [
+  body('password')
+    .notEmpty()
+    .withMessage('Password is required to delete account')
+];
+
+const profileUpdateValidation = [
+  body('username')
+    .optional()
+    .isLength({ min: 3, max: 20 })
+    .withMessage('Username must be between 3 and 20 characters')
+    .matches(/^[a-zA-Z0-9_]+$/)
+    .withMessage('Username can only contain letters, numbers and underscores'),
+  body('displayName')
+    .optional()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Display name must be less than 50 characters')
+];
+
 // Routes
 router.post('/register', uploadSingle('avatar'), registerValidation, register);
 router.post('/login', loginValidation, login);
 router.get('/me', protect, getMe);
-router.put('/profile', protect, uploadSingle('avatar'), updateProfile);
+router.put('/profile', protect, uploadSingle('avatar'), profileUpdateValidation, updateProfile);
+router.post('/upload-profile-picture', protect, uploadSingle('image'), uploadProfilePicture);
+router.post('/upload-banner', protect, uploadSingle('image'), uploadBanner);
 router.put('/change-password', protect, changePasswordValidation, changePassword);
+router.delete('/account', protect, deleteAccountValidation, deleteAccount);
 router.post('/logout', logout);
 
 module.exports = router;

@@ -133,17 +133,17 @@ postSchema.index({ 'recruitmentInfo.gameTitle': 1, 'recruitmentInfo.isActive': 1
 
 // Virtual for like count
 postSchema.virtual('likeCount').get(function() {
-  return this.likes.length;
+  return this.likes ? this.likes.length : 0;
 });
 
 // Virtual for comment count
 postSchema.virtual('commentCount').get(function() {
-  return this.comments.length;
+  return this.comments ? this.comments.length : 0;
 });
 
 // Virtual for share count
 postSchema.virtual('shareCount').get(function() {
-  return this.shares.length;
+  return this.shares ? this.shares.length : 0;
 });
 
 // Ensure virtual fields are included in JSON

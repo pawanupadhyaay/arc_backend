@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const Post = require('../models/Post');
-const Notification = require('../models/Notification');
+const { createFollowNotification } = require('../utils/notificationService');
 const RosterInvite = require('../models/RosterInvite');
 const StaffInvite = require('../models/StaffInvite');
 const { emitNotification, emitNotificationToMultiple } = require('../utils/notificationEmitter');
@@ -12,7 +12,7 @@ const getUsers = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const { search, userType, skillLevel, lookingForTeam, recruiting } = req.query;
+    const { search, userType, skillLevel, lookingForTeam, recruiting, followers } = req.query;
 
     // Build filter object
     const filter = { isActive: true };
@@ -21,6 +21,28 @@ const getUsers = async (req, res) => {
     if (skillLevel) filter['playerInfo.skillLevel'] = skillLevel;
     if (lookingForTeam === 'true') filter['playerInfo.lookingForTeam'] = true;
     if (recruiting === 'true') filter['teamInfo.recruitingFor.0'] = { $exists: true };
+
+    // If searching for followers, filter to only show users that the current user follows
+    if (followers === 'true' && req.user) {
+      const currentUser = await User.findById(req.user._id).select('following');
+      if (currentUser && currentUser.following.length > 0) {
+        filter._id = { $in: currentUser.following };
+      } else {
+        // If user has no followers, return empty array
+        return res.status(200).json({
+          success: true,
+          data: {
+            users: [],
+            pagination: {
+              current: page,
+              total: 0,
+              count: 0,
+              totalUsers: 0
+            }
+          }
+        });
+      }
+    }
 
     // Search functionality
     if (search) {
@@ -202,13 +224,7 @@ const toggleFollow = async (req, res) => {
 
       // Create notification
       try {
-        await Notification.createNotification({
-          recipient: targetUserId,
-          sender: currentUserId,
-          type: 'follow',
-          title: 'New Follower',
-          message: `${currentUser.profile.displayName || currentUser.username} started following you`
-        });
+        await createFollowNotification(targetUserId, currentUserId);
       } catch (notificationError) {
         console.error('Error creating notification:', notificationError);
       }
@@ -245,7 +261,7 @@ const getFollowers = async (req, res) => {
     const user = await User.findById(userId)
       .populate({
         path: 'followers',
-        select: 'username profile.displayName profile.avatar userType',
+        select: 'username profile.displayName profile.avatar profile.bio profile.location userType createdAt',
         options: {
           skip: skip,
           limit: limit
@@ -294,7 +310,7 @@ const getFollowing = async (req, res) => {
     const user = await User.findById(userId)
       .populate({
         path: 'following',
-        select: 'username profile.displayName profile.avatar userType',
+        select: 'username profile.displayName profile.avatar profile.bio profile.location userType createdAt',
         options: {
           skip: skip,
           limit: limit
@@ -1437,6 +1453,178 @@ const sendInviteMessage = async (teamId, playerId, inviteType, inviteData) => {
   }
 };
 
+// Gaming Stats CRUD operations
+const addGamingStat = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const gamingStat = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Initialize playerInfo if it doesn't exist
+    if (!user.playerInfo) {
+      user.playerInfo = {};
+    }
+    if (!user.playerInfo.gamingStats) {
+      user.playerInfo.gamingStats = [];
+    }
+
+    // Add the new gaming stat
+    user.playerInfo.gamingStats.push(gamingStat);
+    await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Gaming stat added successfully',
+      data: {
+        gamingStat: user.playerInfo.gamingStats[user.playerInfo.gamingStats.length - 1]
+      }
+    });
+  } catch (error) {
+    console.error('Error adding gaming stat:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding gaming stat',
+      error: error.message
+    });
+  }
+};
+
+const updateGamingStat = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { statId } = req.params;
+    const updateData = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (!user.playerInfo || !user.playerInfo.gamingStats) {
+      return res.status(404).json({
+        success: false,
+        message: 'No gaming stats found'
+      });
+    }
+
+    const statIndex = user.playerInfo.gamingStats.findIndex(stat => stat._id.toString() === statId);
+    if (statIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Gaming stat not found'
+      });
+    }
+
+    // Update the gaming stat
+    user.playerInfo.gamingStats[statIndex] = {
+      ...user.playerInfo.gamingStats[statIndex].toObject(),
+      ...updateData
+    };
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Gaming stat updated successfully',
+      data: {
+        gamingStat: user.playerInfo.gamingStats[statIndex]
+      }
+    });
+  } catch (error) {
+    console.error('Error updating gaming stat:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating gaming stat',
+      error: error.message
+    });
+  }
+};
+
+const deleteGamingStat = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { statId } = req.params;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (!user.playerInfo || !user.playerInfo.gamingStats) {
+      return res.status(404).json({
+        success: false,
+        message: 'No gaming stats found'
+      });
+    }
+
+    const statIndex = user.playerInfo.gamingStats.findIndex(stat => stat._id.toString() === statId);
+    if (statIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Gaming stat not found'
+      });
+    }
+
+    // Remove the gaming stat
+    user.playerInfo.gamingStats.splice(statIndex, 1);
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Gaming stat deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting gaming stat:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting gaming stat',
+      error: error.message
+    });
+  }
+};
+
+const getGamingStats = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const user = await User.findById(userId).select('playerInfo.gamingStats');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const gamingStats = user.playerInfo?.gamingStats || [];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        gamingStats
+      }
+    });
+  } catch (error) {
+    console.error('Error getting gaming stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting gaming stats',
+      error: error.message
+    });
+  }
+};
 
 module.exports = {
   getUsers,
@@ -1455,5 +1643,9 @@ module.exports = {
   cancelRosterInvite,
   cancelStaffInvite,
   cancelStaffInviteByUsername,
-  leaveTeam
+  leaveTeam,
+  addGamingStat,
+  updateGamingStat,
+  deleteGamingStat,
+  getGamingStats
 };

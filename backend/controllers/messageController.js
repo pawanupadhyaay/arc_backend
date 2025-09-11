@@ -2,6 +2,13 @@ const { Message, ChatRoom } = require('../models/Message');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { uploadMultipleFiles } = require('../utils/cloudinary');
+const { createMessageNotification } = require('../utils/notificationService');
+
+// Get io instance from server
+let io;
+const setIoInstance = (ioInstance) => {
+  io = ioInstance;
+};
 
 // Send direct message
 const sendDirectMessage = async (req, res) => {
@@ -71,16 +78,21 @@ const sendDirectMessage = async (req, res) => {
     ]);
 
     // Create notification for recipient
-    await Notification.createNotification({
-      recipient: recipientId,
-      sender: senderId,
-      type: 'message',
-      title: 'New Message',
-      message: `${req.user.profile.displayName} sent you a message`,
-      data: {
-        messageId: message._id
-      }
-    });
+    console.log('Creating message notification for recipient:', recipientId);
+    await createMessageNotification(recipientId, senderId, message._id);
+    console.log('Message notification created and emitted');
+
+    // Emit real-time message to recipient
+    if (io) {
+      console.log('Emitting real-time message to recipient:', recipientId);
+      io.to(`user-${recipientId}`).emit('newMessage', {
+        chatId: `direct_${senderId}`,
+        message: message
+      });
+      console.log('Real-time message emitted successfully');
+    } else {
+      console.log('Socket.io not available for real-time messaging');
+    }
 
     res.status(201).json({
       success: true,
@@ -252,9 +264,14 @@ const getChatRooms = async (req, res) => {
     .limit(limit);
 
     // Transform chat rooms to match frontend expectations
-    const transformedChatRooms = chatRooms.map(room => {
+    const transformedChatRooms = await Promise.all(chatRooms.map(async (room) => {
       // Get unread count for this user
-      const unreadCount = 0; // TODO: Implement unread count logic for groups
+      const unreadCount = await Message.countDocuments({
+        chatRoom: room._id,
+        messageType: 'group',
+        'readBy.user': { $ne: userId },
+        isDeleted: false
+      });
       
       return {
         _id: room._id,
@@ -285,6 +302,13 @@ const getChatRooms = async (req, res) => {
         unreadCount,
         lastActivity: room.lastActivity
       };
+    }));
+
+    // Sort by unread count first, then by last activity
+    transformedChatRooms.sort((a, b) => {
+      if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
+      if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
+      return new Date(b.lastActivity || 0) - new Date(a.lastActivity || 0);
     });
 
     const total = await ChatRoom.countDocuments({
@@ -333,6 +357,9 @@ const getRecentConversations = async (req, res) => {
         }
       },
       {
+        $sort: { createdAt: -1 }
+      },
+      {
         $group: {
           _id: {
             $cond: [
@@ -341,7 +368,7 @@ const getRecentConversations = async (req, res) => {
               '$sender'
             ]
           },
-          lastMessage: { $last: '$$ROOT' },
+          lastMessage: { $first: '$$ROOT' },
           messageCount: { $sum: 1 }
         }
       },
@@ -394,6 +421,13 @@ const getRecentConversations = async (req, res) => {
 
     // Filter out null entries (deleted users)
     const validConversations = populatedConversations.filter(conv => conv !== null);
+
+    // Sort by unread count first, then by last message time
+    validConversations.sort((a, b) => {
+      if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
+      if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
+      return new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt);
+    });
 
     const total = await Message.aggregate([
       {
@@ -515,6 +549,18 @@ const sendGroupMessage = async (req, res) => {
       { path: 'replyTo', select: 'content.text sender', populate: { path: 'sender', select: 'username profile.displayName' } }
     ]);
 
+    // Emit real-time message to all group members
+    if (io) {
+      console.log('Emitting real-time group message to chat room:', chatRoomId);
+      io.to(`chat-${chatRoomId}`).emit('newMessage', {
+        chatId: chatRoomId,
+        message: message
+      });
+      console.log('Real-time group message emitted successfully');
+    } else {
+      console.log('Socket.io not available for real-time group messaging');
+    }
+
     res.status(201).json({
       success: true,
       message: 'Group message sent successfully',
@@ -591,6 +637,59 @@ const getGroupMessages = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch group messages',
+      error: error.message
+    });
+  }
+};
+
+// Mark messages as read
+const markMessagesAsRead = async (req, res) => {
+  try {
+    const { chatId, messageType } = req.body;
+    const userId = req.user._id;
+
+    let filter = { 'readBy.user': { $ne: userId }, isDeleted: false };
+
+    if (messageType === 'direct') {
+      // For direct messages, mark messages from the other user as read
+      const otherUserId = chatId.replace('direct_', '');
+      filter = {
+        ...filter,
+        messageType: 'direct',
+        sender: otherUserId,
+        recipient: userId
+      };
+    } else {
+      // For group messages, mark all messages in the chat room as read
+      filter = {
+        ...filter,
+        messageType: 'group',
+        chatRoom: chatId
+      };
+    }
+
+    const result = await Message.updateMany(filter, {
+      $addToSet: {
+        readBy: {
+          user: userId,
+          readAt: new Date()
+        }
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Messages marked as read',
+      data: {
+        updatedCount: result.modifiedCount
+      }
+    });
+
+  } catch (error) {
+    console.error('Error marking messages as read:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark messages as read',
       error: error.message
     });
   }
@@ -900,6 +999,95 @@ const removeMemberFromChatRoom = async (req, res) => {
   }
 };
 
+// Update member role in chat room
+const updateMemberRole = async (req, res) => {
+  try {
+    const { chatRoomId, memberId } = req.params;
+    const { role } = req.body; // 'admin' or 'member'
+    const userId = req.user._id;
+
+    const chatRoom = await ChatRoom.findById(chatRoomId);
+    if (!chatRoom) {
+      return res.status(404).json({
+        success: false,
+        message: 'Chat room not found'
+      });
+    }
+
+    // Check if user is admin
+    const isAdmin = chatRoom.creator.toString() === userId.toString() || 
+                   chatRoom.members.some(member => 
+                     member.user.toString() === userId.toString() && member.role === 'admin'
+                   );
+
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can update member roles'
+      });
+    }
+
+    // Check if member exists
+    const memberIndex = chatRoom.members.findIndex(
+      member => member.user.toString() === memberId
+    );
+
+    if (memberIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Member not found in this group'
+      });
+    }
+
+    // Check if trying to update the creator's role
+    if (chatRoom.creator.toString() === memberId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot change the group creator\'s role'
+      });
+    }
+
+    // Update member role
+    chatRoom.members[memberIndex].role = role;
+
+    await chatRoom.save();
+
+    // Populate and transform for frontend
+    await chatRoom.populate([
+      { path: 'creator', select: 'username profile.displayName profile.avatar' },
+      { path: 'members.user', select: 'username profile.displayName profile.avatar' }
+    ]);
+
+    const transformedChatRoom = {
+      _id: chatRoom._id,
+      name: chatRoom.name,
+      description: chatRoom.description,
+      avatar: chatRoom.avatar,
+      creator: chatRoom.creator,
+      members: chatRoom.members.map(member => ({
+        user: member.user,
+        role: member.role,
+        joinedAt: member.joinedAt
+      })),
+      createdAt: chatRoom.createdAt
+    };
+
+    res.json({
+      success: true,
+      message: `Member role updated to ${role}`,
+      chatRoom: transformedChatRoom
+    });
+
+  } catch (error) {
+    console.error('Error updating member role:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
 // Handle invite response from message
 const handleInviteResponse = async (req, res) => {
   try {
@@ -1112,5 +1300,8 @@ module.exports = {
   updateChatRoom,
   addMemberToChatRoom,
   removeMemberFromChatRoom,
-  handleInviteResponse
+  updateMemberRole,
+  handleInviteResponse,
+  markMessagesAsRead,
+  setIoInstance
 };
